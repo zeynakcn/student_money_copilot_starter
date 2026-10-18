@@ -1,6 +1,7 @@
 """Student Money Copilot - Streamlit application with modular UI.
 
-Python calculates the budget, local QVAC explains it. RGB payment is UI preview only.
+Python calculates the budget, local QVAC explains it, and the RGB tab handles
+live STUSD wallet balance and rent payments on the test network.
 """
 import streamlit as st
 
@@ -11,11 +12,12 @@ from ui.dashboard import render_dashboard
 from ui.regular_expenses import render_regular_expenses
 from ui.transactions import render_transactions
 from ui.money_copilot import render_money_copilot
+from ui.rgb_wallet import render_rgb_wallet
 
 st.set_page_config(page_title="Student Money Copilot", page_icon="💸", layout="wide")
 apply_styles()
 st.title("💸 Student Money Copilot")
-st.caption("Student budgeting · Python calculations · local QVAC · RGB integration in progress")
+st.caption("Student budgeting · Python calculations · local QVAC · live RGB wallet payments")
 
 try:
     transactions, expenses = load_data()
@@ -32,7 +34,10 @@ with st.sidebar:
 summary = calculate_budget(balance, expenses)
 
 tab_dashboard, tab_expenses, tab_transactions, tab_copilot = st.tabs([
-    "📊 Dashboard", "🗓️ Regular Expenses", "💳 Transactions", "💬 Money Copilot"
+    "📊 Dashboard",
+    "🗓️ Regular Expenses",
+    "💳 Transactions & RGB Wallet",
+    "💬 Money Copilot",
 ])
 
 with tab_dashboard:
@@ -73,9 +78,16 @@ with tab_expenses:
     render_regular_expenses(expenses, summary)
 
 with tab_transactions:
+    st.header("Transactions & RGB Wallet")
+    st.caption("Live STUSD wallet and payments, followed by your EUR spending history.")
+    render_rgb_wallet(expenses)
+    st.divider()
     render_transactions(expenses, transactions)
 
 with tab_copilot:
     render_money_copilot(summary, expenses, transactions)
 
-st.caption("RGB: on-chain STUSD sending is not connected here. Payment controls are demo-only.")
+st.caption(
+    "Budget figures are demo EUR values. RGB wallet balances and sends use the "
+    "live local STUSD test-network setup."
+)

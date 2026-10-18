@@ -12,6 +12,11 @@ import operator
 
 from qvac_client import run_agent
 
+try:
+    from rgb_client import get_stusd_balance
+except Exception:  # RGB client is optional: the copilot still works without it
+    get_stusd_balance = None
+
 TOOLS = [
     {
         "name": "get_budget",
@@ -36,6 +41,13 @@ TOOLS = [
             "type": "object",
             "properties": {"category": {"type": "string", "description": "Optional category name"}},
         },
+    },
+    {
+        "name": "get_rgb_wallet_balance",
+        "description": "Get the student's live RGB wallet balance in STUSD (settled, future and "
+                       "spendable). Use this for any question about the STUSD or RGB wallet. "
+                       "STUSD is separate from the EUR budget; there is no exchange rate.",
+        "parameters": {"type": "object", "properties": {}},
     },
     {
         "name": "calculate",
@@ -117,6 +129,16 @@ def _toolkit(summary: dict, expenses: list, transactions: list):
                  "category": t.get("category"), "amount": float(t["amount"])}
                 for t in rows
             ]
+        if name == "get_rgb_wallet_balance":
+            if get_stusd_balance is None:
+                return {"error": "The RGB client is not available."}
+            data = get_stusd_balance()
+            return {
+                "unit": "STUSD",
+                "settled": int(data.get("settled", 0)),
+                "future": int(data.get("future", 0)),
+                "spendable": int(data.get("spendable", 0)),
+            }
         if name == "calculate":
             return {"result": calculate(args.get("expression", ""))}
         return {"error": f"Unknown tool {name}"}
@@ -133,11 +155,17 @@ def _system_prompt(categories: list[str]) -> str:
         "transactions, take its average per transaction, multiply by the number of times, and "
         "compare with safe-to-spend. "
         f"Known categories: {', '.join(categories)}. "
-                "Reserved expenses are not incoming money. Safe-to-spend is already what remains after "
+        "Reserved expenses are not incoming money. Safe-to-spend is already what remains after "
         "reserving them, so do not tell the student to pay them first from it. "
         "Call the calculate tool for every multiplication or subtraction, and say how much "
-        "would remain. If the category has fewer than 5 past transactions, mention that the "
+        "would remain. If a category has fewer than 5 past transactions, mention that the "
         "estimate is based on little data. "
+        "The student also has a live RGB wallet holding STUSD. For any question about the "
+        "wallet, the STUSD balance, or sending money with RGB, call get_rgb_wallet_balance and "
+        "answer in STUSD, never in EUR. STUSD and the EUR budget are separate and there is no "
+        "exchange rate. The app sends the planned rent as the same number of STUSD "
+        "(for example 250 STUSD for a 250 EUR rent). You cannot send payments yourself; "
+        "payments are made by the student in the RGB Wallet section. "
         "Answer the question directly in 2-4 short sentences, mention the key numbers from the "
         "tool results, and give one practical tip. If you lack information, ask for it."
     )
@@ -167,7 +195,7 @@ def answer_question(question: str, summary: dict, expenses: list, transactions: 
     if not text:
         text = "QVAC returned an empty answer. Please try rephrasing the question."
 
-    caption = "Written locally by QVAC (Qwen3 4B)."
+    caption = "Written locally by QVAC."
     if trace:
         caption += " Data it looked up: " + _trace_text(trace)
     else:
